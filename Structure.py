@@ -1,42 +1,166 @@
-from pathlib import Path
+import os
 
-# Existing project directory
-project = Path(".")
+# Root project directory
+PROJECT_NAME = "."
 
-# Folders to create inside the existing project
+# Directories to create
 directories = [
-    project / "app",
-    project / "company_data" / "invoices",
-    project / "tests",
+    # Mock company app
+    "app/templates",
+
+    # Agent
+    "agent/core",
+    "agent/tools",
+    "agent/prompts",
+
+    # Interface
+    "interface",
+
+    # Evaluation
+    "evals/tasks",
+
+    # Tests
+    "tests",
+
+    # Docker
+    "docker",
+
+    # GitHub Actions
+    ".github/workflows",
+
+    # Monitoring
+    "monitoring",
 ]
 
 # Files to create
 files = [
-    project / "app" / "agent.py",
-    project / "app" / "planner.py",
-    project / "app" / "executor.py",
-    project / "app" / "verifier.py",
-    project / "app" / "tools.py",
-    project / "app" / "models.py",
-    project / "app" / "main.py",
+    # -------------------------
+    # APP
+    # -------------------------
+    "app/main.py",
+    "app/db.py",
+    "app/seed.py",
+    "app/chaos.py",
 
-    project / "company_data" / "invoices" / "invoice_abc_001.txt",
-    project / "company_data" / "invoices" / "invoice_abc_002.txt",
-    project / "company_data" / "invoices" / "invoice_xyz_001.txt",
+    "app/templates/login.html",
+    "app/templates/customers.html",
+    "app/templates/orders.html",
+    "app/templates/refund.html",
 
-    project / "company_data" / "payments.json",
+    # -------------------------
+    # AGENT CORE
+    # -------------------------
+    "agent/core/loop.py",
+    "agent/core/planner.py",
+    "agent/core/verifier.py",
+    "agent/core/memory.py",
+    "agent/core/guard.py",
+    "agent/core/failures.py",
+    "agent/core/llm.py",
 
-    project / "requirements.txt",
-    project / "README.md",
-    project / ".env",
+    # -------------------------
+    # AGENT TOOLS
+    # -------------------------
+    "agent/tools/base.py",
+    "agent/tools/registry.py",
+    "agent/tools/browser.py",
+    "agent/tools/api.py",
+    "agent/tools/files.py",
+
+    # -------------------------
+    # AGENT SCHEMAS
+    # -------------------------
+    "agent/schemas.py",
+
+    # -------------------------
+    # PROMPTS
+    # -------------------------
+    "agent/prompts/system_v1.txt",
+    "agent/prompts/planner_v1.txt",
+    "agent/prompts/verifier_v1.txt",
+
+    # -------------------------
+    # INTERFACE
+    # -------------------------
+    "interface/cli.py",
+    "interface/streamlit_app.py",
+
+    # -------------------------
+    # EVALUATION
+    # -------------------------
+    "evals/run_evals.py",
+    "evals/report.py",
+
+    # Example evaluation task
+    "evals/tasks/invoice_task.yaml",
+
+    # -------------------------
+    # TESTS
+    # -------------------------
+    "tests/test_planner.py",
+    "tests/test_tools.py",
+    "tests/test_verifier.py",
+
+    # -------------------------
+    # DVC / CONFIG
+    # -------------------------
+    "dvc.yaml",
+    "params.yaml",
+
+    # -------------------------
+    # DOCKER
+    # -------------------------
+    "docker/Dockerfile",
+    "docker/docker-compose.yml",
+
+    # -------------------------
+    # CI/CD
+    # -------------------------
+    ".github/workflows/ci.yml",
+
+    # -------------------------
+    # MONITORING
+    # -------------------------
+    "monitoring/README.md",
+
+    # -------------------------
+    # PROJECT DOCS
+    # -------------------------
+    "README.md",
+    ".gitignore",
+    "requirements.txt",
 ]
 
-# Create folders
-for directory in directories:
-    directory.mkdir(parents=True, exist_ok=True)
 
-# Create files
-for file in files:
-    file.touch(exist_ok=True)
+def create_project_structure():
+    # Create root directory
+    os.makedirs(PROJECT_NAME, exist_ok=True)
 
-print("✅ Structure created inside:", project.resolve())
+    # Create directories
+    for directory in directories:
+        path = os.path.join(PROJECT_NAME, directory)
+        os.makedirs(path, exist_ok=True)
+
+    # Create files
+    for file in files:
+        path = os.path.join(PROJECT_NAME, file)
+
+        # Make sure parent directory exists
+        parent_directory = os.path.dirname(path)
+
+        if parent_directory:
+            os.makedirs(parent_directory, exist_ok=True)
+
+        # Create empty file
+        if not os.path.exists(path):
+            with open(path, "w", encoding="utf-8") as f:
+                f.write("")
+
+    print("=" * 50)
+    print("Project structure created successfully!")
+    print("=" * 50)
+    print(f"Location: {os.path.abspath(PROJECT_NAME)}")
+
+
+if __name__ == "__main__":
+    create_project_structure()
