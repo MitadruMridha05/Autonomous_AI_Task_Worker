@@ -1,0 +1,5 @@
+Invoice Number: INV-1002
+Company: ABC Corp
+Invoice Date: 2026-10-05
+Amount: 45000
+Due Date: 2026-10-30

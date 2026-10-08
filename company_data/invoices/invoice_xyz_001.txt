@@ -1,0 +1,5 @@
+Invoice Number: INV-2001
+Company: XYZ Ltd
+Invoice Date: 2026-10-01
+Amount: 32000
+Due Date: 2026-10-25
