@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}OpsPilot Admin{% endblock %}</title>
+  <style>
+    body { font-family: system-ui, sans-serif; margin: 0; color: #1d2330; background: #f6f7f9; }
+    header { background: #1d2330; color: #fff; padding: 12px 24px; display: flex; gap: 16px; align-items: baseline; }
+    header a { color: #fff; text-decoration: none; font-weight: 600; }
+    header small { color: #9aa3b5; }
+    main { max-width: 860px; margin: 24px auto; padding: 0 16px; }
+    h1 { font-size: 1.4rem; margin: 0 0 16px; }
+    h2 { font-size: 1.05rem; margin: 24px 0 8px; }
+    table { width: 100%; border-collapse: collapse; background: #fff; border: 1px solid #d9dde5; }
+    th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid #e8ebf0; font-size: .92rem; }
+    th { background: #eef0f4; }
+    .badge { padding: 2px 8px; border-radius: 10px; font-size: .8rem; background: #e3e7ee; }
+    .badge.delivered { background: #d8f0de; } .badge.refunded { background: #fde7c8; }
+    .badge.cancelled { background: #f6d6d6; }
+    .banner { padding: 10px 14px; border-radius: 4px; margin-bottom: 16px; }
+    .banner.ok { background: #d8f0de; } .banner.err { background: #f6d6d6; }
+    form.inline { display: flex; gap: 8px; margin: 0 0 16px; }
+    input[type=text], textarea { padding: 8px; border: 1px solid #b8bfcc; border-radius: 4px; font: inherit; }
+    textarea { width: 100%; box-sizing: border-box; }
+    button { padding: 8px 14px; border: 0; border-radius: 4px; background: #2b59c3; color: #fff; font: inherit; cursor: pointer; }
+    button.danger { background: #b3261e; }
+    .card { background: #fff; border: 1px solid #d9dde5; padding: 14px 16px; border-radius: 4px; }
+    dl { display: grid; grid-template-columns: 140px 1fr; gap: 6px 12px; margin: 0; }
+    dt { color: #5b6477; } dd { margin: 0; }
+  </style>
+</head>
+<body>
+  <header><a href="/customers">OpsPilot Admin</a><small>Sandbox company portal. All data is fake.</small></header>
+  <main>{% block content %}{% endblock %}</main>
+</body>
+</html>

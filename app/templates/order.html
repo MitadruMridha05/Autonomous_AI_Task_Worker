@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% block title %}Order #{{ order.id }} - OpsPilot Admin{% endblock %}
+{% block content %}
+<h1>Order #{{ order.id }}</h1>
+{% if msg %}<div class="banner ok" id="flash-success">{{ msg }}</div>{% endif %}
+{% if error %}<div class="banner err" id="flash-error">{{ error }}</div>{% endif %}
+<div class="card">
+  <dl>
+    <dt>Customer</dt><dd><a href="/customers/{{ order.customer.id }}">{{ order.customer.name }}</a></dd>
+    <dt>Status</dt><dd><span class="badge {{ order.status }}" id="order-status">{{ order.status }}</span></dd>
+    <dt>Total</dt><dd>{{ order.currency }} {{ "%.2f"|format(order.total_amount) }}</dd>
+    <dt>Placed</dt><dd>{{ order.placed_at[:10] }}</dd>
+    <dt>Delivered</dt><dd>{{ order.delivered_at[:10] if order.delivered_at else "-" }}</dd>
+  </dl>
+</div>
+<h2>Items</h2>
+<table>
+  <thead><tr><th>Product</th><th>Qty</th><th>Unit price</th></tr></thead>
+  <tbody>
+  {% for i in order["items"] %}
+    <tr><td>{{ i.product }}</td><td>{{ i.quantity }}</td><td>{{ "%.2f"|format(i.unit_price) }}</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+
+{% if order.refund %}
+<h2>Refund</h2>
+<div class="card" id="refund-record">
+  Refunded {{ order.currency }} {{ "%.2f"|format(order.refund.amount) }} on {{ order.refund.created_at[:10] }}.
+  Reason: {{ order.refund.reason }}
+</div>
+{% elif order.status == "delivered" %}
+<h2>Issue a refund</h2>
+<form method="post" action="/orders/{{ order.id }}/refund" id="refund-form">
+  <label for="refund-reason">Reason</label>
+  <textarea id="refund-reason" name="reason" rows="3" required minlength="3"></textarea>
+  <p><button type="submit" id="refund-submit" class="danger">Issue refund</button></p>
+</form>
+{% else %}
+<p id="refund-unavailable">Refunds are only available for delivered orders.</p>
+{% endif %}
+{% endblock %}

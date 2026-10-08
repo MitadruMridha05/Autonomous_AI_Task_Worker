@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% block title %}Customers - OpsPilot Admin{% endblock %}
+{% block content %}
+<h1>Customers</h1>
+<form class="inline" method="get" action="/customers">
+  <input type="text" id="customer-search" name="q" value="{{ q }}" placeholder="Search by name or email">
+  <button type="submit" id="customer-search-submit">Search</button>
+</form>
+<table id="customers-table">
+  <thead><tr><th>ID</th><th>Name</th><th>Email</th><th>City</th></tr></thead>
+  <tbody>
+  {% for c in customers %}
+    <tr data-customer-id="{{ c.id }}">
+      <td>{{ c.id }}</td>
+      <td><a href="/customers/{{ c.id }}">{{ c.name }}</a></td>
+      <td>{{ c.email }}</td>
+      <td>{{ c.city }}</td>
+    </tr>
+  {% else %}
+    <tr><td colspan="4">No customers match "{{ q }}".</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% endblock %}

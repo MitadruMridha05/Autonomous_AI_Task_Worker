@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% block title %}{{ customer.name }} - OpsPilot Admin{% endblock %}
+{% block content %}
+<h1>{{ customer.name }}</h1>
+<div class="card">
+  <dl>
+    <dt>Customer ID</dt><dd>{{ customer.id }}</dd>
+    <dt>Email</dt><dd>{{ customer.email }}</dd>
+    <dt>Phone</dt><dd>{{ customer.phone }}</dd>
+    <dt>City</dt><dd>{{ customer.city }}</dd>
+  </dl>
+</div>
+<h2>Orders (newest first)</h2>
+<table id="orders-table">
+  <thead><tr><th>Order</th><th>Items</th><th>Total</th><th>Status</th><th>Placed</th></tr></thead>
+  <tbody>
+  {% for o in orders %}
+    <tr data-order-id="{{ o.id }}">
+      <td><a href="/orders/{{ o.id }}">#{{ o.id }}</a></td>
+      <td>{{ o.items_summary }}</td>
+      <td>{{ o.currency }} {{ "%.2f"|format(o.total_amount) }}</td>
+      <td><span class="badge {{ o.status }}">{{ o.status }}</span></td>
+      <td>{{ o.placed_at[:10] }}</td>
+    </tr>
+  {% else %}
+    <tr><td colspan="5">No orders.</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+<h2>Emails sent to this customer</h2>
+<table id="notifications-table">
+  <thead><tr><th>When</th><th>Subject</th></tr></thead>
+  <tbody>
+  {% for n in notifications %}
+    <tr><td>{{ n.sent_at[:16] }}</td><td>{{ n.subject }}</td></tr>
+  {% else %}
+    <tr><td colspan="2">None yet.</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% endblock %}
