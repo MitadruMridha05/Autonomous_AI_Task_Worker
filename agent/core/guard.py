@@ -1,4 +1,4 @@
-"""Human-in-the-loop approval for risky tools.
+'''"""Human-in-the-loop approval for risky tools.
 
 Day 1: a simple policy (ask / auto-approve / deny). Day 2 grows this into the full guard:
 ambiguity detection, per-tool policies and a Streamlit approval UI.
@@ -24,4 +24,25 @@ class ApprovalPolicy:
         if self.mode == "deny" or self.prompt_fn is None:
             return False, "auto_denied" if self.mode == "deny" else "no_interactive_user"
         approved = bool(self.prompt_fn(tool, arguments, rationale))
-        return approved, "user_approved" if approved else "user_denied"
+        return approved, "user_approved" if approved else "user_denied"'''
+
+from __future__ import annotations
+
+from typing import Literal
+
+
+class ApprovalPolicy:
+    RISKY_ACTIONS = {"refund_order", "delete_order", "send_email"}
+
+    def should_approve(self, tool_name: str, arguments: dict) -> bool | Literal["ask"]:
+        """Return 'ask' for risky actions; caller must obtain explicit approval."""
+        normalized = tool_name.rsplit(".", 1)[-1].lower()
+        if normalized in self.RISKY_ACTIONS:
+            return "ask"
+        return True
+
+    def detect_ambiguity(self, llm_response: str) -> str | None:
+        text = (llm_response or "").lower()
+        phrases = ("which john", "not clear", "ambiguous", "need clarification",
+                   "which customer", "which order", "more information")
+        return llm_response if any(phrase in text for phrase in phrases) else None

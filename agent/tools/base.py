@@ -1,4 +1,4 @@
-"""Core tool abstractions.
+'''"""Core tool abstractions.
 
 A Tool = name + description + a Pydantic model for its arguments + a plain Python function.
 The Pydantic model does double duty: it produces the JSON schema the LLM sees, and it validates
@@ -65,4 +65,54 @@ class ToolResult:
         return {"ok": True, "data": self.data} if self.ok else {"ok": False, "error": self.error}
 
     def to_json(self) -> str:
-        return json.dumps(self.to_dict(), default=str)
+        return json.dumps(self.to_dict(), default=str)'''
+
+from __future__ import annotations
+
+from dataclasses import dataclass, field
+from typing import Any, Callable
+
+
+class ToolError(RuntimeError):
+    """Raised when a tool cannot complete an action."""
+
+
+@dataclass
+class Tool:
+    name: str
+    description: str = ""
+    handler: Callable[..., Any] | None = None
+    risky: bool = False
+    schema: dict[str, Any] = field(default_factory=dict)
+
+    async def run(self, **arguments):
+        if self.handler is None:
+            raise ToolError(f"No handler configured for tool {self.name!r}")
+        import inspect
+        result = self.handler(**arguments)
+        return await result if inspect.isawaitable(result) else result
+
+
+class ToolRegistry:
+    def __init__(self):
+        self._tools: dict[str, Tool] = {}
+
+    def register(self, tool: Tool) -> None:
+        if tool.name in self._tools:
+            raise ValueError(f"Tool already registered: {tool.name}")
+        self._tools[tool.name] = tool
+
+    def get(self, name: str) -> Tool:
+        try:
+            return self._tools[name]
+        except KeyError as exc:
+            raise ToolError(f"Unknown tool: {name}") from exc
+
+    def describe(self) -> list[dict[str, Any]]:
+        return [
+            {"name": t.name, "description": t.description, "arguments": t.schema, "risky": t.risky}
+            for t in self._tools.values()
+        ]
+
+    def __contains__(self, name: str) -> bool:
+        return name in self._tools
