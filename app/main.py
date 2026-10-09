@@ -102,7 +102,6 @@ def api_list_notifications(customer_id: int, db=Depends(get_db)):
 def api_list_invoices(overdue_days_gt: int | None = None, db=Depends(get_db)):
     return services.list_invoices(db, overdue_days_gt)
 
-
 @api.get("/audit")
 def api_audit(limit: int = 20, db=Depends(get_db)):
     return services.list_audit(db, limit)
