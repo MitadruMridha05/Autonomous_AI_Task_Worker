@@ -30,12 +30,13 @@ class Verifier:
     async def verify_refund(self, order_id: int) -> dict:
         order = await self._get_json(f"/api/orders/{int(order_id)}")
         status = str(order.get("status", "")).lower() if isinstance(order, dict) else ""
-        has_refund = status == "refunded"
+        refund = order.get("refund") if isinstance(order, dict) else None
+        has_refund = status == "refunded" and isinstance(refund, dict) and refund.get("order_id", order_id) == order_id
         return {
             "action": "refund",
             "order_id": int(order_id),
             "success": has_refund,
-            "evidence": f"Order status: {status or 'unknown'}",
+            "evidence": f"Order status: {status or 'unknown'}; refund record: {'present' if refund else 'missing'}",
         }
 
     async def verify_notification(self, customer_id: int) -> dict:
