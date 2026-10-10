@@ -8,6 +8,7 @@ class ErrorType(Enum):
     NOT_FOUND = "fail"
     PERMISSION = "ask"
     NO_OP = "skip"
+    UNKNOWN = "fail"
 
 
 def classify_error(exception: Exception) -> ErrorType:
@@ -28,7 +29,7 @@ def classify_error(exception: Exception) -> ErrorType:
         return ErrorType.TRANSIENT
     if any(term in message for term in ("already refunded", "already completed", "no-op", "no op")):
         return ErrorType.NO_OP
-    return ErrorType.NO_OP
+    return ErrorType.UNKNOWN
 
 
 def handle_failure(error: Exception, tool_name: str, step_count: int, max_retries: int = 3) -> dict:

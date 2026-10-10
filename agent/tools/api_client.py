@@ -71,3 +71,7 @@ class OpsPilotClient:
     def send_notification(self, customer_id: int, subject: str, body: str) -> Any:
         return self._request("POST", f"/api/customers/{customer_id}/notifications",
                              json={"subject": subject, "body": body})
+
+    def list_invoices(self, overdue_days_gt: int | None = None) -> Any:
+        params = {} if overdue_days_gt is None else {"overdue_days_gt": overdue_days_gt}
+        return self._request("GET", "/api/invoices", params=params)

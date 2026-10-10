@@ -51,6 +51,26 @@ human approval. Prefer checking current state before performing a mutation.
                 return [str(step) for step in parsed]
         raise ValueError("Planner returned an invalid plan; expected a JSON list of steps.")
 
+    async def replan(self, goal: Goal, observation: str, previous_plan: list[str] | None = None) -> list[str]:
+        """Create a replacement plan from current observations instead of stale assumptions."""
+        prompt = f"""
+Re-plan the task using the latest observation. Preserve completed work, do not repeat
+non-idempotent actions, and use a fallback tool when the primary path failed.
+Goal: {goal.model_dump_json()}
+Previous plan: {json.dumps(previous_plan or [])}
+Latest observation:
+{observation}
+Return only a JSON array of ordered step strings.
+"""
+        response = await _maybe_await(self.llm.call(prompt, schema=list[str]))
+        if isinstance(response, list):
+            return [str(step) for step in response]
+        if isinstance(response, str):
+            parsed = _parse_json(response)
+            if isinstance(parsed, list):
+                return [str(step) for step in parsed]
+        raise ValueError("Planner returned an invalid re-plan; expected a JSON list of steps.")
+
 
 async def _maybe_await(value):
     import inspect

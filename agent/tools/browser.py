@@ -4,8 +4,27 @@ from pathlib import Path
 from typing import Any
 
 from playwright.async_api import Browser, Page, TimeoutError as PlaywrightTimeoutError
+from pydantic import BaseModel, Field
 
-from .base import ToolError
+from .base import Tool, ToolError
+
+
+class NavigateArgs(BaseModel):
+    url: str = Field(description="Absolute http:// or https:// URL")
+
+
+class ClickArgs(BaseModel):
+    selector: str = Field(min_length=1, description="Selector returned in visible interactive elements")
+
+
+class FillFormArgs(BaseModel):
+    fields: dict[str, str] = Field(description="Mapping of visible selectors to values")
+
+
+class EmptyArgs(BaseModel):
+    """Schema for browser actions that take no arguments."""
+
+    pass
 
 
 class BrowserTool:
@@ -24,14 +43,14 @@ class BrowserTool:
 
     async def navigate(self, url: str) -> str:
         if not url.startswith(("http://", "https://")):
-            raise ToolError("Only http:// and https:// URLs are allowed.")
+            raise ToolError("invalid_request", "Only http:// and https:// URLs are allowed.")
         page = await self._ensure_page()
         try:
             await page.goto(url, wait_until="domcontentloaded", timeout=30_000)
         except PlaywrightTimeoutError as exc:
             # A partially loaded page may still be usable.
             if not page.url:
-                raise ToolError(f"Navigation timed out: {exc}") from exc
+                raise ToolError("timeout", f"Navigation timed out: {exc}", retryable=True) from exc
         self.step_count += 1
         return await self.extract_page_text()
 
@@ -44,7 +63,7 @@ class BrowserTool:
             except PlaywrightTimeoutError:
                 pass
         except Exception as exc:
-            raise ToolError(f"Could not click selector {selector!r}: {exc}") from exc
+            raise ToolError("browser", f"Could not click selector {selector!r}: {exc}", retryable=True) from exc
         self.step_count += 1
         return await self.extract_page_text()
 
@@ -54,7 +73,7 @@ class BrowserTool:
             try:
                 await page.locator(selector).first.fill(str(value), timeout=10_000)
             except Exception as exc:
-                raise ToolError(f"Could not fill selector {selector!r}: {exc}") from exc
+                raise ToolError("browser", f"Could not fill selector {selector!r}: {exc}") from exc
         self.step_count += 1
         return await self.extract_page_text()
 
@@ -91,7 +110,7 @@ class BrowserTool:
               return { text: bodyText.slice(0, 12000), interactive };
             }""")
         except Exception as exc:
-            raise ToolError(f"Could not extract visible page content: {exc}") from exc
+            raise ToolError("browser", f"Could not extract visible page content: {exc}") from exc
         controls = "\n".join(
             f"- {item['tag']} {item['role']} text={item['text']!r} "
             f"type={item['type']!r} placeholder={item['placeholder']!r} "
@@ -115,5 +134,15 @@ class BrowserTool:
 
     async def _require_page(self) -> Page:
         if self.page is None or self.page.is_closed():
-            raise ToolError("No active page. Call navigate(url) first.")
+            raise ToolError("invalid_request", "No active page. Call navigate(url) first.")
         return self.page
+
+
+def build_browser_tools(browser: BrowserTool) -> list[Tool]:
+    """Return registry-compatible wrappers for the stateful browser capability."""
+    return [
+        Tool("browser_navigate", "Navigate and return visible page text and controls.", NavigateArgs, browser.navigate),
+        Tool("browser_click", "Click a visible control using its returned selector.", ClickArgs, browser.click, risky=True),
+        Tool("browser_fill_form", "Fill visible form fields by selector.", FillFormArgs, browser.fill_form),
+        Tool("browser_screenshot", "Save a screenshot of the current page.", EmptyArgs, browser.screenshot),
+    ]

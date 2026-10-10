@@ -15,7 +15,7 @@ from fastapi import APIRouter, Depends, FastAPI, Form, Query, Request
 from fastapi.responses import JSONResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 
-from . import services
+from . import chaos, services
 from .db import connect, db_path, init_schema
 from .schemas import NotificationRequest, RefundRequest
 from .seed import reset_db, seed
@@ -149,6 +149,13 @@ def ui_order(request: Request, order_id: int, msg: str = "", db=Depends(get_db))
 
 @app.post("/orders/{order_id}/refund", include_in_schema=False)
 def ui_refund(request: Request, order_id: int, reason: str = Form(...), db=Depends(get_db)):
+    if chaos.should_fail("ui_refund"):
+        return templates.TemplateResponse(
+            request,
+            "order.html",
+            {"order": services.get_order(db, order_id), "msg": "", "error": "Temporary UI failure; try the API fallback."},
+            status_code=500,
+        )
     try:
         services.refund_order(db, order_id, reason.strip(), actor="ui")
     except DomainError as exc:
