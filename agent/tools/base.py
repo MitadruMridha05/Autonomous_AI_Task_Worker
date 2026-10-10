@@ -11,10 +11,10 @@ class ToolError(RuntimeError):
 @dataclass
 class Tool:
     name: str
+    params: Type[BaseModel]
     description: str = ""
     handler: Callable[..., Any] | None = None
     risky: bool = False
-    params: Type[BaseModel]
     schema: dict[str, Any] = field(default_factory=dict)
 
     async def run(self, **arguments):
