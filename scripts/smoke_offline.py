@@ -35,9 +35,11 @@ def main() -> int:
             agent = Agent(ScriptedLLM(task1_steps()), registry, ApprovalPolicy("auto"),
                           runs_dir=None, on_event=print_event)
             result = agent.run("Priya Sharma got a damaged item. Refund her latest order and let her know.")
-        conn = sqlite3.connect(db)
-        status = conn.execute("SELECT status FROM orders WHERE id = 1004").fetchone()[0]
-        mails = conn.execute("SELECT COUNT(*) FROM notifications WHERE customer_id = 1").fetchone()[0]
+        # Use a context manager so Windows releases the SQLite file before
+        # TemporaryDirectory attempts to remove it during cleanup.
+        with sqlite3.connect(db) as conn:
+            status = conn.execute("SELECT status FROM orders WHERE id = 1004").fetchone()[0]
+            mails = conn.execute("SELECT COUNT(*) FROM notifications WHERE customer_id = 1").fetchone()[0]
     print(f"\nAgent status: {result.status} | summary: {result.summary}")
     print(f"Ground truth in DB -> order 1004 status: {status}, emails sent to Priya: {mails}")
     ok = result.ok and status == "refunded" and mails == 1
