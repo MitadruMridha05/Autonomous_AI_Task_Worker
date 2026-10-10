@@ -191,3 +191,8 @@ opspilot/
 - Hard-coding task steps. If you can't swap in a new task without touching core code, generalization scores low.
 - Dumping full HTML into the prompt. Extract visible text and interactive elements only.
 - Retrying non-idempotent actions blindly
+
+  Unzip, run pip install -r requirements.txt, then python -m pytest and confirm 49 pass.
+Add your API key to .env, then run python -m scripts.hello_tool_call.
+Run the app with uvicorn app.main:app --port 8000, then python -m agent.cli "Priya Sharma got a damaged item. Refund her latest order and let her know."
+Try the hard cases in the guide: the two Johns, the already-refunded order, and answering “n” at the approval prompt.
