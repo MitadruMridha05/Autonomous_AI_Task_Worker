@@ -314,7 +314,7 @@ Docker configuration was syntax-validated in this environment, but the Docker ex
 
 Latest local verification:
 
-- `pytest -q`: **63 passed**.
+- `pytest -q`: **62 passed**.
 - `python -m evals.run_evals`: **9/9 passed**.
 - `pytest -q tests/test_browser_api_recovery.py`: **passed**, including real UI failure → API fallback and SQLite refund assertions.
 - `python -m evals.run_live_evals --model gpt-5-mini`: **3/3 passed** with complete traces and backend verification.
@@ -332,7 +332,7 @@ Known limitations: MLflow is configured for a local SQLite tracking store rather
 | MLflow run logging | PASS | Local SQLite MLflow store created by `run_evals` |
 | DVC versioned pipeline | PASS | `dvc.yaml`, `params.yaml`, task manifest |
 | Pandas/Seaborn result plots | PASS | `evals/report.py`, generated Markdown and PNG |
-| Pytest coverage | PASS | 63 tests passed, including browser recovery and lifecycle safety tests |
+| Pytest coverage | PASS | 62 tests passed, including browser recovery and lifecycle safety tests |
 | Dockerfiles and Compose | PASS | Configuration written and YAML parsed; image build not run because Docker CLI is unavailable |
 | GitHub Actions CI | PASS | `.github/workflows/ci.yml` written and YAML parsed |
 | README architecture/setup/design/limitations | PASS | This README and `docs/demo-script.md` |
