@@ -1,0 +1,25 @@
+services:
+  app:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000
+    ports:
+      - "8000:8000"
+    environment:
+      OPSPILOT_DB: /workspace/data/opspilot.db
+    volumes:
+      - ../data:/workspace/data
+  agent:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    depends_on:
+      - app
+    environment:
+      OPSPILOT_URL: http://app:8000
+      OPSPILOT_DB: /workspace/data/eval.db
+    volumes:
+      - ../runs:/workspace/runs
+      - ../data:/workspace/data
+    command: python -m evals.run_evals --output runs/eval_results.json

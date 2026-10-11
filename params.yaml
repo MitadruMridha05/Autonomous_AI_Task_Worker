@@ -1,0 +1,6 @@
+evals:
+  task_file: evals/tasks/day3_tasks.yaml
+  max_steps: 20
+  overdue_days_gt: 30
+report:
+  output_dir: runs/report

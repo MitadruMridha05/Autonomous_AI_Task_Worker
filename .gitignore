@@ -5,6 +5,12 @@ __pycache__/
 .pytest_cache/
 data/*.db
 runs/*.json
+runs/*.csv
+runs/report/
+runs/mlruns/
 .DS_Store
 myenv/
 junk.py
+
+mlruns/
+runs/mlflow.db

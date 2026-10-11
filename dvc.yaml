@@ -1,0 +1,25 @@
+stages:
+  seed_db:
+    cmd: python -m app.seed
+    deps:
+      - app/db.py
+      - app/seed.py
+    outs:
+      - data/opspilot.db
+  run_evals:
+    cmd: python -m evals.run_evals --tasks evals/tasks/day3_tasks.yaml --output runs/eval_results.json
+    deps:
+      - evals/run_evals.py
+      - evals/tasks/day3_tasks.yaml
+      - agent
+      - app
+    outs:
+      - runs/eval_results.json
+  report:
+    cmd: python -m evals.report --results runs/eval_results.json --output-dir runs/report
+    deps:
+      - evals/report.py
+      - runs/eval_results.json
+    outs:
+      - runs/report/report.md
+      - runs/report/task_results.png
