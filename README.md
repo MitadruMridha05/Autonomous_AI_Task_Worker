@@ -206,7 +206,31 @@ The Day 3 reliability/MLOps layer is implemented and integrated with the existin
 
 Day 4 submission material is documented in [`docs/demo-script.md`](docs/demo-script.md). It includes the normal task, recovery, clarification, approval, verification, and evaluation-report scenes. A real screen recording is intentionally not committed by this coding run; the script is copy-paste-ready for recording.
 
-## 12. Setup and commands
+## 12. OpsPilot dashboard
+
+The repository now includes a responsive React + TypeScript command center at `/worker`. It is served by the existing FastAPI app and does not replace the original customer/order pages. The dashboard uses the existing health, audit, customer/order tool implementations and agent loop through a thin HTTP adapter:
+
+| Endpoint | Purpose |
+|---|---|
+| `POST /api/worker/run` | Queue a natural-language worker run. Pass `task`, `max_steps`, and `approve_risky`. |
+| `GET /api/worker/runs` | List in-process run history for the current app process. |
+| `GET /api/worker/runs/{run_id}` | Poll live status and trace events. |
+| `POST /api/worker/runs/{run_id}/cancel` | Mark a queued/live run as cancelled. |
+| `GET /api/worker/settings` | Read non-secret runtime configuration. |
+
+Build the frontend once after installing Node dependencies:
+
+```bash
+npm --prefix frontend install
+npm --prefix frontend run build
+uvicorn app.main:app --reload --port 8000
+```
+
+Then open `http://localhost:8000/worker`. The frontend uses same-origin API calls by default. For a separately hosted frontend, set `VITE_API_BASE_URL=http://localhost:8000` before building. The worker still requires the provider configuration described below; when no provider key is available, the dashboard keeps the error visible and the original backend remains usable.
+
+Risky agent actions are denied by default in the dashboard. The user must enable “Approve risky actions” and confirm the browser prompt before a run can automatically approve refunds or outbound customer emails. Run traces are kept in the existing `runs/` directory and the live polling registry is intentionally process-local for this prototype.
+
+## 13. Setup and commands
 
 ### Linux/macOS
 

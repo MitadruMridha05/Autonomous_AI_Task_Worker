@@ -12,7 +12,8 @@ from pathlib import Path
 from urllib.parse import quote
 
 from fastapi import APIRouter, Depends, FastAPI, Form, Query, Request
-from fastapi.responses import JSONResponse, RedirectResponse
+from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
+from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
 from . import chaos, services
@@ -20,6 +21,7 @@ from .db import connect, db_path, init_schema
 from .schemas import NotificationRequest, RefundRequest
 from .seed import reset_db, seed
 from .services import DomainError
+from .worker_api import router as worker_router
 
 BASE_DIR = Path(__file__).resolve().parent
 templates = Jinja2Templates(directory=str(BASE_DIR / "templates"))
@@ -115,6 +117,29 @@ def api_reset():
 
 
 app.include_router(api)
+app.include_router(worker_router)
+
+
+# ------------------------------------------------------------------ worker dashboard
+STATIC_DIR = BASE_DIR / "static" / "worker-ui"
+if STATIC_DIR.exists() and (STATIC_DIR / "assets").exists():
+    app.mount("/worker/assets", StaticFiles(directory=str(STATIC_DIR / "assets")), name="worker-assets")
+
+
+@app.get("/worker", include_in_schema=False)
+def worker_dashboard():
+    index = STATIC_DIR / "index.html"
+    if not index.exists():
+        return JSONResponse(status_code=503, content={"detail": "Frontend not built. Run npm --prefix frontend run build."})
+    return FileResponse(index)
+
+
+@app.get("/manus-routes.json", include_in_schema=False)
+def worker_routes_manifest():
+    manifest = STATIC_DIR / "manus-routes.json"
+    if not manifest.exists():
+        return JSONResponse(status_code=404, content={"detail": "Route manifest not found"})
+    return FileResponse(manifest, media_type="application/json")
 
 
 # ------------------------------------------------------------------ HTML UI
