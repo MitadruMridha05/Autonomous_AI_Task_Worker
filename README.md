@@ -191,3 +191,92 @@ opspilot/
 - Hard-coding task steps. If you can't swap in a new task without touching core code, generalization scores low.
 - Dumping full HTML into the prompt. Extract visible text and interactive elements only.
 - Retrying non-idempotent actions blindly
+
+
+## 11. Day 3–4 implementation delivered
+
+The Day 3 reliability/MLOps layer is implemented and integrated with the existing Day 1–2 app and agent:
+
+- `evals/tasks/day3_tasks.yaml` contains **9 deterministic scenarios**: normal refund/email, invoice CSV export, ambiguous identity, already-refunded no-op, non-refundable order, injected UI failure with API recovery, approval denial, malformed arguments, and execution-limit termination.
+- `evals/run_evals.py` runs the real FastAPI app over HTTP, the real SQLite-backed tools and agent loop, and scripted model turns. It writes JSON results, ground-truth checks state through the API, and logs to MLflow when available using `runs/mlflow.db` (JSON results remain the source of truth if tracking is unavailable).
+- `evals/report.py` uses Pandas and Seaborn/Matplotlib to produce `runs/report/report.md` and `runs/report/task_results.png`.
+- `dvc.yaml` defines `seed_db → run_evals → report`; `params.yaml` records the task file and execution parameters.
+- `docker/Dockerfile` and `docker/docker-compose.yml` define the mock app and evaluation services.
+- `.github/workflows/ci.yml` checks imports, runs pytest, executes the deterministic evaluation suite, and builds the report.
+
+Day 4 submission material is documented in [`docs/demo-script.md`](docs/demo-script.md). It includes the normal task, recovery, clarification, approval, verification, and evaluation-report scenes. A real screen recording is intentionally not committed by this coding run; the script is copy-paste-ready for recording.
+
+## 12. Setup and commands
+
+### Linux/macOS
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install -r requirements.txt
+cp .env.example .env                 # add a provider key only for live LLM runs
+pytest -q
+python -m evals.run_evals
+python -m evals.report
+uvicorn app.main:app --reload --port 8000
+```
+
+### Windows PowerShell
+
+```powershell
+py -3 -m venv .venv
+.venv\Scripts\Activate.ps1
+python -m pip install -r requirements.txt
+Copy-Item .env.example .env
+pytest -q
+python -m evals.run_evals
+python -m evals.report
+uvicorn app.main:app --reload --port 8000
+```
+
+For a live task, start the app in one terminal and run, for example:
+
+```bash
+python -m agent.cli --auto-approve "Priya Sharma got a damaged item. Refund her latest order and let her know."
+```
+
+Without an LLM credential, use the offline deterministic evaluation command. It uses a local database and scripted model responses; it does not send real email or make external changes.
+
+### Docker and DVC
+
+```bash
+cd docker
+ docker compose up --build app
+# In another terminal from the repository root:
+python -m evals.run_evals && python -m evals.report
+# If DVC is installed:
+dvc repro
+```
+
+Docker configuration was syntax-validated in this environment, but the Docker executable itself was not available for an image build. Live provider integration was not run because no provider credential was required for, or used by, the deterministic suite.
+
+## 13. Verified results and known limitations
+
+Latest local verification:
+
+- `pytest -q`: **59 passed**.
+- `python -m evals.run_evals`: **9/9 passed**.
+- `python -m evals.report`: report and PNG chart created successfully.
+- Python compile/import checks: passed.
+- YAML parsing for task, DVC, Compose, and CI files: passed.
+
+Known limitations: MLflow is configured for a local SQLite tracking store rather than a hosted tracking server; Docker and DVC commands require those tools to be installed; browser-agent live execution and real LLM calls require the configured provider/browser dependencies and credentials. No Grafana/AWS stretch work is included.
+
+## 14. Day 3–4 completion checklist
+
+| Requirement | Status | Evidence |
+|---|---|---|
+| 8–10 task evaluation harness with failure/ambiguous cases | PASS | 9 tasks in `evals/tasks/day3_tasks.yaml`; 9/9 run |
+| MLflow run logging | PASS | Local SQLite MLflow store created by `run_evals` |
+| DVC versioned pipeline | PASS | `dvc.yaml`, `params.yaml`, task manifest |
+| Pandas/Seaborn result plots | PASS | `evals/report.py`, generated Markdown and PNG |
+| Pytest coverage | PASS | 59 tests passed, including `tests/test_evals.py` |
+| Dockerfiles and Compose | PASS | Configuration written and YAML parsed; image build not run because Docker CLI is unavailable |
+| GitHub Actions CI | PASS | `.github/workflows/ci.yml` written and YAML parsed |
+| README architecture/setup/design/limitations | PASS | This README and `docs/demo-script.md` |
+| Demo recording | BLOCKED | Recording requires an interactive recording tool; reproducible script provided |

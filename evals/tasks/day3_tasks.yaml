@@ -1,0 +1,47 @@
+version: 1
+tasks:
+  - id: refund_priya
+    description: Refund Priya Sharma's latest delivered order and email her.
+    scenario: refund_priya
+    expected_status: completed
+    expected: {order_id: 1004, notification_customer_id: 1, order_status: refunded}
+  - id: export_overdue_invoices
+    description: Export invoices overdue by more than 30 days to CSV.
+    scenario: export_invoices
+    expected_status: completed
+    expected: {rows: 3}
+  - id: ambiguous_john
+    description: Refund John's order.
+    scenario: ambiguous_john
+    expected_status: needs_clarification
+    expected: {question_required: true}
+  - id: already_refunded
+    description: Refund Ananya Rao's order 1005.
+    scenario: already_refunded
+    expected_status: no_action_needed
+    expected: {order_id: 1005, order_status: refunded}
+  - id: non_refundable
+    description: Refund order 1006.
+    scenario: non_refundable
+    expected_status: failed
+    expected: {order_id: 1006, order_status: shipped}
+  - id: ui_failure_api_recovery
+    description: Recover from one temporary UI refund failure using the API fallback.
+    scenario: ui_failure_api_recovery
+    expected_status: completed
+    expected: {order_id: 1004, order_status: refunded, injected_ui_failures: 1}
+  - id: approval_declined
+    description: Refund Priya's latest order when the approver declines.
+    scenario: approval_declined
+    expected_status: declined
+    expected: {order_id: 1004, order_status: delivered}
+  - id: malformed_tool_arguments
+    description: Handle a malformed refund tool call without changing state.
+    scenario: malformed_arguments
+    expected_status: failed
+    expected: {order_id: 1004, order_status: delivered}
+  - id: step_limit
+    description: Stop a looping model at the configured execution limit.
+    scenario: step_limit
+    expected_status: max_steps_exceeded
+    expected: {max_steps: 3}
