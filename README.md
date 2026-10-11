@@ -266,6 +266,37 @@ python -m agent.cli --auto-approve "Priya Sharma got a damaged item. Refund her 
 
 Without an LLM credential, use the offline deterministic evaluation command. It uses a local database and scripted model responses; it does not send real email or make external changes.
 
+### Browser-to-API recovery proof
+
+The recovery test uses Playwright against the real refund page. It injects a
+one-time UI failure, records the browser error, lets the next agent turn select
+the `issue_refund` API fallback, and verifies the final SQLite order and refund
+record:
+
+```bash
+python -m playwright install chromium
+pytest -q tests/test_browser_api_recovery.py
+```
+
+The test asserts that the browser tool returns a retryable `server_error`, the
+API refund succeeds, exactly one refund record exists, and the lifecycle emits
+a passed backend-verification event.
+
+### Live-provider validation
+
+Run three safe tasks with the configured OpenAI-compatible provider. The full
+model/tool/observation/approval/verification traces are written to
+`runs/live_eval_results.json` and individual run JSON files under `runs/live/`:
+
+```bash
+python -m evals.run_live_evals --model gpt-5-mini
+```
+
+This live check is intentionally separate from the offline regression suite.
+It covers read-only order inspection, refund plus customer notification, and
+ambiguous-customer clarification. Risky actions are auto-approved only inside
+the local seeded mock application.
+
 ### Docker and DVC
 
 ```bash
@@ -277,14 +308,16 @@ python -m evals.run_evals && python -m evals.report
 dvc repro
 ```
 
-Docker configuration was syntax-validated in this environment, but the Docker executable itself was not available for an image build. Live provider integration was not run because no provider credential was required for, or used by, the deterministic suite.
+Docker configuration was syntax-validated in this environment, but the Docker executable itself was not available for an image build. Live provider validation requires a configured provider credential and is intentionally kept separate from the deterministic suite.
 
 ## 13. Verified results and known limitations
 
 Latest local verification:
 
-- `pytest -q`: **59 passed**.
+- `pytest -q`: **63 passed**.
 - `python -m evals.run_evals`: **9/9 passed**.
+- `pytest -q tests/test_browser_api_recovery.py`: **passed**, including real UI failure → API fallback and SQLite refund assertions.
+- `python -m evals.run_live_evals --model gpt-5-mini`: **3/3 passed** with complete traces and backend verification.
 - `python -m evals.report`: report and PNG chart created successfully.
 - Python compile/import checks: passed.
 - YAML parsing for task, DVC, Compose, and CI files: passed.
@@ -299,7 +332,7 @@ Known limitations: MLflow is configured for a local SQLite tracking store rather
 | MLflow run logging | PASS | Local SQLite MLflow store created by `run_evals` |
 | DVC versioned pipeline | PASS | `dvc.yaml`, `params.yaml`, task manifest |
 | Pandas/Seaborn result plots | PASS | `evals/report.py`, generated Markdown and PNG |
-| Pytest coverage | PASS | 59 tests passed, including `tests/test_evals.py` |
+| Pytest coverage | PASS | 63 tests passed, including browser recovery and lifecycle safety tests |
 | Dockerfiles and Compose | PASS | Configuration written and YAML parsed; image build not run because Docker CLI is unavailable |
 | GitHub Actions CI | PASS | `.github/workflows/ci.yml` written and YAML parsed |
 | README architecture/setup/design/limitations | PASS | This README and `docs/demo-script.md` |

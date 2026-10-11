@@ -27,6 +27,11 @@ class EmptyArgs(BaseModel):
     pass
 
 
+class BrowserRefundArgs(BaseModel):
+    order_id: int = Field(description="Numeric order ID to refund through the support portal")
+    reason: str = Field(min_length=3, description="Refund reason shown in the portal")
+
+
 class BrowserTool:
     """Async Playwright browser tool returning visible text and interactive controls."""
 
@@ -191,6 +196,17 @@ class SyncBrowserTool:
         self.runs_dir.mkdir(parents=True, exist_ok=True); path = self.runs_dir / f"browser_step_{self.step_count:04d}.png"
         self.page.screenshot(path=str(path), full_page=True); return str(path)
 
+    def refund_order(self, order_id: int, reason: str) -> str:
+        """Submit the portal form and fail loudly when the UI reports an error."""
+        self.navigate(f"/orders/{int(order_id)}")
+        self.page.locator('textarea[name="reason"]').fill(reason)
+        response = self.page.locator('form[action*="/refund"] button[type="submit"]').click()
+        text = self._text()
+        if "Temporary UI failure" in text or "error" in text.lower() and "refund" in text.lower():
+            raise ToolError("server_error", f"Browser refund failed for order {order_id}: {text[:300]}", retryable=True)
+        self.step_count += 1
+        return text
+
     def close(self) -> None:
         self._browser.close(); self._pw.stop()
 
@@ -201,4 +217,5 @@ def build_sync_browser_tools(browser: SyncBrowserTool) -> list[Tool]:
         Tool("browser_click", "Click a visible browser control using its returned selector.", ClickArgs, browser.click, risky=True),
         Tool("browser_fill_form", "Fill visible form fields by selector.", FillFormArgs, browser.fill_form),
         Tool("browser_screenshot", "Save a screenshot of the current page.", EmptyArgs, browser.screenshot),
+        Tool("browser_issue_refund", "Submit a refund through the browser portal. If the UI fails, use issue_refund API as the explicit fallback.", BrowserRefundArgs, browser.refund_order, risky=True),
     ]
