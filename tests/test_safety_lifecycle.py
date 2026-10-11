@@ -4,6 +4,7 @@ from agent.core.scripted import ScriptedLLM
 from agent.core.verifier import BackendVerifier
 from agent.tools.api_client import OpsPilotClient
 from agent.tools.api_tools import build_api_tools
+from agent.tools.day2_tools import build_day2_invoice_tools
 from agent.tools.registry import ToolRegistry
 from .helpers import call
 import threading
@@ -42,3 +43,20 @@ def test_cancellation_prevents_model_and_tool_execution(http):
     result = agent.run("Inspect order 1004")
     assert result.status == "cancelled"
     assert not any(event["kind"] == "tool_result" for event in result.trace)
+
+
+def test_completed_invoice_claim_without_artifact_fails_verification(http):
+    registry = ToolRegistry()
+    client = OpsPilotClient(http=http)
+    registry.register_all(build_api_tools(client))
+    registry.register_all(build_day2_invoice_tools(client))
+    agent = Agent(
+        ScriptedLLM([call("finish", {"status": "completed", "summary": "Exported overdue invoices.", "evidence": ["done"]})]),
+        registry,
+        ApprovalPolicy("auto"),
+        verifier=BackendVerifier(client),
+        runs_dir=None,
+    )
+    result = agent.run("Export invoices overdue by more than 30 days to CSV.")
+    assert result.status == "failed"
+    assert "no export call was captured" in result.summary
