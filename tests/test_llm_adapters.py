@@ -75,6 +75,8 @@ def test_make_llm_gives_actionable_errors(monkeypatch):
 
 
 def test_make_llm_builds_clients_when_configured(monkeypatch):
+    # Do not let a developer's .env/CI environment change the default-model assertion.
+    monkeypatch.delenv("LLM_MODEL", raising=False)
     monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-test")
     llm = make_llm("anthropic")
     assert llm.provider == "anthropic" and llm.model == "claude-haiku-5-5"
