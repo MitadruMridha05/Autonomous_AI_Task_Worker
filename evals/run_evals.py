@@ -12,6 +12,7 @@ import yaml
 from app.seed import reset_db
 from agent.core.guard import ApprovalPolicy
 from agent.core.loop import Agent
+from agent.core.verifier import BackendVerifier
 from agent.core.scripted import ScriptedLLM
 from agent.tools.api_client import OpsPilotClient
 from agent.tools.api_tools import build_api_tools
@@ -66,7 +67,9 @@ def run_evaluations(tasks: list[dict], *, db_path: str, output: str | Path = "ru
             if injected.status_code != 500:
                 raise AssertionError(f"UI failure injection did not return 500: {injected.status_code}")
             os.environ.pop("OPSPILOT_UI_REFUND_FAILURES", None)
-        agent = Agent(ScriptedLLM(steps), registry, ApprovalPolicy(mode), lambda _: "", max_steps=3 if scenario == "step_limit" else 20, runs_dir="runs")
+        agent = Agent(ScriptedLLM(steps), registry, ApprovalPolicy(mode), lambda _: "",
+                      max_steps=3 if scenario == "step_limit" else 20, runs_dir="runs",
+                      verifier=BackendVerifier(client))
         started = time.perf_counter(); result = agent.run(task["description"]); passed, evidence = _check_expected(task, result, client)
         records.append({"task_id": task["id"], "scenario": scenario, "status": result.status, "expected_status": task["expected_status"], "passed": passed, "steps": result.steps, "tool_calls": result.usage["tool_calls"], "duration_s": round(time.perf_counter() - started, 4), "retries": sum(1 for e in result.trace if e.get("kind") == "tool_result" and (e.get("error") or {}).get("retryable")), "evidence": evidence, "trace_path": result.trace_path})
     out = Path(output); out.parent.mkdir(parents=True, exist_ok=True); out.write_text(json.dumps(records, indent=2), encoding="utf-8"); _log_mlflow(records); return records

@@ -14,6 +14,7 @@ Design notes
 from __future__ import annotations
 
 import json
+import threading
 import time
 import uuid
 from dataclasses import asdict, dataclass, field
@@ -72,15 +73,23 @@ class Agent:
         max_steps: int = 20,
         runs_dir: str | Path | None = "runs",
         on_event: Callable[[dict], None] | None = None,
+        verifier: Callable[[FinishArgs, list[dict[str, Any]]], dict[str, Any]] | None = None,
+        cancel_event: threading.Event | None = None,
     ):
         self.llm, self.registry = llm, registry
         self.guard = guard or ApprovalPolicy("deny")
         self.ask_user = ask_user
         self.max_steps, self.runs_dir, self.on_event = max_steps, runs_dir, on_event
+        self.verifier = verifier
+        self.cancel_event = cancel_event or threading.Event()
         self.control = ToolRegistry()
         self.control.register_all(CONTROL_TOOLS)
         self._trace: list[dict[str, Any]] = []
         self._t0 = 0.0
+
+    def cancel(self) -> None:
+        """Request cooperative cancellation between model calls and tool executions."""
+        self.cancel_event.set()
 
     # ------------------------------------------------------------ public API
     def run(self, task: str) -> RunResult:
@@ -95,6 +104,10 @@ class Agent:
 
         for step in range(1, self.max_steps + 1):
             steps = step
+            if self.cancel_event.is_set():
+                status, summary = "cancelled", "Cancellation requested before the next model action."
+                self._emit("cancelled", step=step)
+                break
             try:
                 resp = self.llm.generate(system, history, specs)
             except LLMError as exc:
@@ -126,6 +139,11 @@ class Agent:
                 if final is not None:  # `finish` already seen this turn: still answer every call, but don't act
                     content, is_error = json.dumps({"ok": False, "error": {
                         "type": "skipped", "message": "Run already finished; call not executed."}}), True
+                elif self.cancel_event.is_set():
+                    content, is_error = json.dumps({"ok": False, "error": {
+                        "type": "cancelled", "retryable": False,
+                        "message": "Cancellation requested; action was not executed."}}), True
+                    self._emit("cancelled", step=step, name=tc.name)
                 else:
                     content, is_error, fin = self._handle_call(tc.name, tc.arguments, resp.text, step)
                     final = fin or final
@@ -134,6 +152,19 @@ class Agent:
 
             if final is not None:
                 status, summary, evidence = final.status, final.summary, final.evidence
+                if status in SUCCESS_STATUSES and self.verifier is not None:
+                    self._emit("verification", step=step, status="started")
+                    try:
+                        check = self.verifier(final, list(self._trace))
+                    except Exception as exc:
+                        check = {"success": False, "evidence": [f"Verifier error: {exc}"]}
+                    evidence = list(check.get("evidence", evidence))
+                    self._emit("verification", step=step,
+                               status="passed" if check.get("success") else "failed",
+                               evidence=evidence)
+                    if not check.get("success"):
+                        status = "failed"
+                        summary = check.get("summary", "The requested outcome could not be verified against backend state.")
                 break
         else:
             status, summary = "max_steps_exceeded", f"Stopped after {self.max_steps} steps without finishing."
@@ -174,10 +205,11 @@ class Agent:
                     res = ToolResult(False, error=bad)
                 else:
                     approved, how = self.guard.approve(tool, args, rationale)
-                    self._emit("approval", step=step, name=name, approved=approved, how=how)
-                    res = self.registry.execute(name, args) if approved else ToolResult(False, error={
-                        "type": "denied_by_user", "retryable": False,
-                        "message": "The user declined this action. Do not retry it or work around it; "
+                    self._emit("approval", step=step, name=name, arguments=args,
+                               rationale=rationale, approved=approved, how=how)
+                    res = self.registry.execute(name, args) if approved and not self.cancel_event.is_set() else ToolResult(False, error={
+                        "type": "cancelled" if self.cancel_event.is_set() else "denied_by_user", "retryable": False,
+                        "message": "Action was cancelled." if self.cancel_event.is_set() else "The user declined this action. Do not retry it or work around it; "
                                    "call finish with status 'declined'."})
             else:
                 res = self.registry.execute(name, args)

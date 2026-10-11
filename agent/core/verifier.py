@@ -79,3 +79,43 @@ class Verifier:
         results = await self.verify_all(goal, memory)
         success = all(item.get("success", False) for item in results.values()) if results else False
         return {"success": success, "results": results}
+
+
+class BackendVerifier:
+    """Synchronous verifier for the synchronous agent loop and dashboard."""
+    def __init__(self, client: Any):
+        self.client = client
+
+    def __call__(self, finish: Any, trace: list[dict[str, Any]]) -> dict[str, Any]:
+        calls = [event for event in trace if event.get("kind") == "tool_call"]
+        refund_ids = [int(event["arguments"]["order_id"]) for event in calls
+                      if event.get("name") == "issue_refund"
+                      and str(event.get("arguments", {}).get("order_id", "")).isdigit()]
+        order_ids = refund_ids or [int(event["arguments"]["order_id"]) for event in calls
+                                   if event.get("name") == "get_order"
+                                   and str(event.get("arguments", {}).get("order_id", "")).isdigit()]
+        customer_ids = [int(event["arguments"]["customer_id"]) for event in calls
+                        if event.get("name") == "send_customer_email"
+                        and str(event.get("arguments", {}).get("customer_id", "")).isdigit()]
+        evidence: list[str] = []
+        for order_id in order_ids:
+            try:
+                order = self.client.get_order(order_id)
+            except Exception as exc:
+                return {"success": False, "evidence": [f"Order {order_id} could not be read: {exc}"]}
+            status = str(order.get("status", "unknown"))
+            evidence.append(f"Order {order_id} status={status}")
+            if (refund_ids or finish.status == "no_action_needed") and status != "refunded":
+                return {"success": False, "evidence": evidence,
+                        "summary": f"Backend verification failed: order {order_id} is {status}, not refunded."}
+        for customer_id in customer_ids:
+            try:
+                notifications = self.client._request("GET", f"/api/customers/{customer_id}/notifications")
+            except Exception as exc:
+                return {"success": False, "evidence": evidence + [f"Notifications could not be read: {exc}"]}
+            count = len(notifications) if isinstance(notifications, list) else 0
+            evidence.append(f"Customer {customer_id} notifications={count}")
+            if count == 0:
+                return {"success": False, "evidence": evidence,
+                        "summary": f"Backend verification failed: no notification exists for customer {customer_id}."}
+        return {"success": True, "evidence": evidence or list(getattr(finish, "evidence", []))}

@@ -146,3 +146,59 @@ def build_browser_tools(browser: BrowserTool) -> list[Tool]:
         Tool("browser_fill_form", "Fill visible form fields by selector.", FillFormArgs, browser.fill_form),
         Tool("browser_screenshot", "Save a screenshot of the current page.", EmptyArgs, browser.screenshot),
     ]
+
+
+class SyncBrowserTool:
+    """Thread-friendly Playwright wrapper for the synchronous agent loop."""
+    def __init__(self, base_url: str, runs_dir: str | Path = "runs"):
+        from playwright.sync_api import sync_playwright
+        self._pw = sync_playwright().start()
+        self._browser = self._pw.chromium.launch(headless=True)
+        self.page = self._browser.new_page()
+        self.base_url, self.runs_dir, self.step_count = base_url.rstrip("/"), Path(runs_dir), 0
+
+    def _text(self) -> str:
+        payload = self.page.evaluate("""() => {
+          const visible = e => { const s=getComputedStyle(e), r=e.getBoundingClientRect(); return s.visibility !== 'hidden' && s.display !== 'none' && r.width > 0 && r.height > 0; };
+          const clean = s => (s || '').replace(/\\s+/g, ' ').trim();
+          const els = [...document.querySelectorAll('button,a,input,textarea,select,[role="button"],[role="link"]')].filter(visible).slice(0,100);
+          const interactive = els.map((el,i) => { const id='agent-control-'+i; el.setAttribute('data-agent-control',id); return {tag:el.tagName.toLowerCase(),text:clean(el.innerText||el.value||el.getAttribute('aria-label')||el.placeholder),selector:`[data-agent-control="${id}"]`}; });
+          return {text:clean(document.body?.innerText).slice(0,12000), interactive};
+        }""")
+        controls = "\n".join(f"- {x['tag']} text={x['text']!r} selector={x['selector']}" for x in payload["interactive"])
+        return f"VISIBLE PAGE TEXT:\n{payload['text']}\n\nVISIBLE INTERACTIVE ELEMENTS:\n{controls}"
+
+    def navigate(self, url: str) -> str:
+        url = self.base_url + url if url.startswith("/") else url
+        if not url.startswith(("http://", "https://")):
+            raise ToolError("invalid_request", "Only http:// and https:// URLs are allowed.")
+        try: self.page.goto(url, wait_until="domcontentloaded", timeout=30_000)
+        except Exception as exc: raise ToolError("browser", f"Navigation failed: {exc}", retryable=True) from exc
+        self.step_count += 1; return self._text()
+
+    def click(self, selector: str) -> str:
+        try: self.page.locator(selector).first.click(timeout=10_000)
+        except Exception as exc: raise ToolError("browser", f"Could not click {selector!r}: {exc}", retryable=True) from exc
+        self.step_count += 1; return self._text()
+
+    def fill_form(self, fields: dict[str, str]) -> str:
+        for selector, value in fields.items():
+            try: self.page.locator(selector).first.fill(str(value), timeout=10_000)
+            except Exception as exc: raise ToolError("browser", f"Could not fill {selector!r}: {exc}") from exc
+        self.step_count += 1; return self._text()
+
+    def screenshot(self) -> str:
+        self.runs_dir.mkdir(parents=True, exist_ok=True); path = self.runs_dir / f"browser_step_{self.step_count:04d}.png"
+        self.page.screenshot(path=str(path), full_page=True); return str(path)
+
+    def close(self) -> None:
+        self._browser.close(); self._pw.stop()
+
+
+def build_sync_browser_tools(browser: SyncBrowserTool) -> list[Tool]:
+    return [
+        Tool("browser_navigate", "Navigate and return visible page text and controls.", NavigateArgs, browser.navigate),
+        Tool("browser_click", "Click a visible browser control using its returned selector.", ClickArgs, browser.click, risky=True),
+        Tool("browser_fill_form", "Fill visible form fields by selector.", FillFormArgs, browser.fill_form),
+        Tool("browser_screenshot", "Save a screenshot of the current page.", EmptyArgs, browser.screenshot),
+    ]

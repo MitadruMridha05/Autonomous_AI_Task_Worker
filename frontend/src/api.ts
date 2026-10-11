@@ -16,6 +16,7 @@ export const api = {
   run: (payload: { task: string; max_steps: number; approve_risky: boolean; provider?: string; model?: string }) => request<Run>('/api/worker/run', { method: 'POST', body: JSON.stringify(payload) }),
   getRun: (id: string) => request<Run>(`/api/worker/runs/${id}`),
   cancel: (id: string) => request<Run>(`/api/worker/runs/${id}/cancel`, { method: 'POST' }),
+  approval: (id: string, approved: boolean) => request<Run>(`/api/worker/runs/${id}/approval`, { method: 'POST', body: JSON.stringify({ approved }) }),
   settings: () => request<Record<string, string | number>>('/api/worker/settings'),
   audit: () => request<Array<Record<string, string | number>>>('/api/audit?limit=8'),
 }
