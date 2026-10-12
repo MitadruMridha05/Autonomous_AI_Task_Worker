@@ -17,3 +17,18 @@ runs/mlflow.db
 
 frontend/node_modules/
 *.tsbuildinfo
+# Removed or deprecated project files
+agent/prompts/planner_v1.txt
+agent/prompts/system_v1.txt
+agent/prompts/verifier_v1.txt
+agent/tools/api.py
+interface/cli.py
+interface/streamlit_app.py
+app/templates/login.html
+app/templates/orders.html
+app/templates/refund.html
+evals/tasks/invoice_task.yaml
+
+runs/**/*.json
+runs/**/*.csv
+runs/report/
