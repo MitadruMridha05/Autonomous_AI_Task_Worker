@@ -28,3 +28,7 @@ app/templates/login.html
 app/templates/orders.html
 app/templates/refund.html
 evals/tasks/invoice_task.yaml
+
+runs/**/*.json
+runs/**/*.csv
+runs/report/
