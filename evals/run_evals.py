@@ -20,6 +20,8 @@ from agent.tools.day2_tools import build_day2_invoice_tools
 from agent.tools.registry import ToolRegistry
 from tests.helpers import task1_steps, call, last_error
 
+DEFAULT_EXPORT_PATH = Path("runs/eval_overdue.csv")
+
 def load_tasks(path: str | Path) -> list[dict[str, Any]]:
     data = yaml.safe_load(Path(path).read_text(encoding="utf-8"))
     if not isinstance(data, dict) or not isinstance(data.get("tasks"), list):
@@ -48,15 +50,81 @@ def _check_expected(task: dict, result, client: OpsPilotClient) -> tuple[bool, l
         notifications = client._request("GET", f"/api/customers/{expected['notification_customer_id']}/notifications")
         ok = ok and bool(notifications); evidence.append(f"notifications={len(notifications)}")
     if "rows" in expected:
-        csv_path = Path("runs/eval_overdue.csv"); rows = sum(1 for _ in csv_path.open(encoding="utf-8")) - 1 if csv_path.exists() else -1
+        csv_path = _last_export_path(result.trace)
+        rows = sum(1 for _ in csv_path.open(encoding="utf-8")) - 1 if csv_path.exists() else -1
         ok = ok and rows == expected["rows"]; evidence.append(f"csv_rows={rows}")
     if expected.get("question_required"): ok = ok and any(e.get("kind") == "ask_user" for e in result.trace)
     return ok, evidence
+
+
+def _last_export_path(trace: list[dict[str, Any]]) -> Path:
+    for event in reversed(trace):
+        if event.get("kind") != "tool_call" or event.get("name") != "export_overdue_invoices":
+            continue
+        path = event.get("arguments", {}).get("path")
+        if isinstance(path, str) and path.strip():
+            return Path(path)
+    return DEFAULT_EXPORT_PATH
+
+
+def _tool_results(trace: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    items: list[dict[str, Any]] = []
+    for event in trace:
+        if event.get("kind") != "tool_result":
+            continue
+        error = event.get("error") if isinstance(event.get("error"), dict) else {}
+        items.append({
+            "name": event.get("name"),
+            "ok": bool(event.get("ok")),
+            "error_type": error.get("type"),
+            "retryable": bool(error.get("retryable")),
+        })
+    return items
+
+
+def _verification_status(trace: list[dict[str, Any]]) -> str:
+    checks = [e for e in trace if e.get("kind") == "verification"]
+    if not checks:
+        return "not_requested"
+    return str(checks[-1].get("status", "unknown"))
+
+
+def _final_state(task: dict, result, client: OpsPilotClient) -> dict[str, Any]:
+    expected = task.get("expected", {})
+    state: dict[str, Any] = {}
+    if "order_id" in expected:
+        order = client.get_order(int(expected["order_id"]))
+        refund = order.get("refund") if isinstance(order, dict) else None
+        state["order"] = {
+            "id": int(expected["order_id"]),
+            "status": order.get("status"),
+            "refund_id": refund.get("id") if isinstance(refund, dict) else None,
+        }
+    if "notification_customer_id" in expected:
+        notifications = client._request("GET", f"/api/customers/{int(expected['notification_customer_id'])}/notifications")
+        state["notifications"] = {"customer_id": int(expected["notification_customer_id"]), "count": len(notifications)}
+    if "rows" in expected:
+        csv_path = _last_export_path(result.trace)
+        rows = -1
+        if csv_path.exists():
+            with csv_path.open("r", encoding="utf-8") as handle:
+                rows = max(sum(1 for _ in handle) - 1, 0)
+        state["invoice_export"] = {"path": str(csv_path), "rows": rows}
+    return state
+
+
+def _remove_stale_artifacts(scenario: str) -> None:
+    if scenario != "export_invoices":
+        return
+    path = DEFAULT_EXPORT_PATH
+    if path.exists():
+        path.unlink()
 
 def run_evaluations(tasks: list[dict], *, db_path: str, output: str | Path = "runs/eval_results.json", base_url: str) -> list[dict]:
     client = OpsPilotClient(base_url); records = []
     for task in tasks:
         reset_db(db_path); scenario = task["scenario"]; steps, mode = _steps(scenario)
+        _remove_stale_artifacts(scenario)
         registry = ToolRegistry(); registry.register_all(build_api_tools(client))
         if scenario == "export_invoices": registry.register_all(build_day2_invoice_tools(client))
         if scenario == "ui_failure_api_recovery":
@@ -71,7 +139,28 @@ def run_evaluations(tasks: list[dict], *, db_path: str, output: str | Path = "ru
                       max_steps=3 if scenario == "step_limit" else 20, runs_dir="runs",
                       verifier=BackendVerifier(client))
         started = time.perf_counter(); result = agent.run(task["description"]); passed, evidence = _check_expected(task, result, client)
-        records.append({"task_id": task["id"], "scenario": scenario, "status": result.status, "expected_status": task["expected_status"], "passed": passed, "steps": result.steps, "tool_calls": result.usage["tool_calls"], "duration_s": round(time.perf_counter() - started, 4), "retries": sum(1 for e in result.trace if e.get("kind") == "tool_result" and (e.get("error") or {}).get("retryable")), "evidence": evidence, "trace_path": result.trace_path})
+        tool_results = _tool_results(result.trace)
+        retries = sum(1 for event in tool_results if event["retryable"])
+        record = {
+            "task_id": task["id"],
+            "scenario": scenario,
+            "description": task["description"],
+            "status": result.status,
+            "expected_status": task["expected_status"],
+            "passed": passed,
+            "steps": result.steps,
+            "tool_calls": result.usage["tool_calls"],
+            "duration_s": round(time.perf_counter() - started, 4),
+            "retries": retries,
+            "verification_status": _verification_status(result.trace),
+            "tool_results": tool_results,
+            "final_state": _final_state(task, result, client),
+            "evidence": evidence,
+            "summary": result.summary,
+            "trace_path": result.trace_path,
+            "failure_reason": None if passed else result.summary,
+        }
+        records.append(record)
     out = Path(output); out.parent.mkdir(parents=True, exist_ok=True); out.write_text(json.dumps(records, indent=2), encoding="utf-8"); _log_mlflow(records); return records
 
 def _log_mlflow(records: list[dict]) -> None:
@@ -94,5 +183,25 @@ def main() -> int:
     os.environ["OPSPILOT_DB"] = a.db
     from tests.helpers import LiveServer
     with LiveServer() as server: records = run_evaluations(load_tasks(a.tasks), db_path=a.db, output=a.output, base_url=server.url)
-    passed = sum(r["passed"] for r in records); print(json.dumps({"passed": passed, "total": len(records), "output": a.output}, indent=2)); return 0 if passed == len(records) else 1
+    passed = sum(r["passed"] for r in records)
+    summary = {
+        "passed": passed,
+        "total": len(records),
+        "output": a.output,
+        "scenarios": [
+            {
+                "task_id": r["task_id"],
+                "scenario": r["scenario"],
+                "passed": r["passed"],
+                "status": r["status"],
+                "expected_status": r["expected_status"],
+                "retries": r["retries"],
+                "verification_status": r["verification_status"],
+                "trace_path": r["trace_path"],
+            }
+            for r in records
+        ],
+    }
+    print(json.dumps(summary, indent=2))
+    return 0 if passed == len(records) else 1
 if __name__ == "__main__": raise SystemExit(main())
