@@ -9,8 +9,11 @@ def build_report(results_path: str | Path = "runs/eval_results.json", output_dir
     if frame.empty: raise ValueError("Evaluation results are empty")
     frame["passed"] = frame["passed"].astype(bool)
     summary = {"tasks": len(frame), "passed": int(frame["passed"].sum()), "failed": int((~frame["passed"]).sum()), "success_rate": float(frame["passed"].mean()), "mean_steps": float(frame["steps"].mean()), "mean_latency_s": float(frame["duration_s"].mean()), "total_retries": int(frame["retries"].sum())}
-    md = out / "report.md"; lines = ["# OpsPilot Evaluation Report", "", f"- Tasks: {summary['tasks']}", f"- Passed: {summary['passed']}", f"- Failed: {summary['failed']}", f"- Success rate: {summary['success_rate']:.1%}", f"- Mean steps: {summary['mean_steps']:.2f}", f"- Mean latency: {summary['mean_latency_s']:.4f} s", f"- Retries: {summary['total_retries']}", "", "| Task | Status | Expected | Passed | Steps | Latency (s) |", "|---|---|---|---:|---:|---:|"]
-    for _, r in frame.iterrows(): lines.append(f"| {r.task_id} | {r.status} | {r.expected_status} | {'yes' if r.passed else 'no'} | {r.steps} | {r.duration_s} |")
+    md = out / "report.md"; lines = ["# OpsPilot Evaluation Report", "", f"- Tasks: {summary['tasks']}", f"- Passed: {summary['passed']}", f"- Failed: {summary['failed']}", f"- Success rate: {summary['success_rate']:.1%}", f"- Mean steps: {summary['mean_steps']:.2f}", f"- Mean latency: {summary['mean_latency_s']:.4f} s", f"- Retries: {summary['total_retries']}", "", "| Task | Status | Expected | Verification | Passed | Steps | Retries | Latency (s) | Failure reason |", "|---|---|---|---|---:|---:|---:|---:|---|"]
+    for _, r in frame.iterrows():
+        verification = r.verification_status if "verification_status" in frame.columns else "n/a"
+        failure = r.failure_reason if "failure_reason" in frame.columns and isinstance(r.failure_reason, str) else ""
+        lines.append(f"| {r.task_id} | {r.status} | {r.expected_status} | {verification} | {'yes' if r.passed else 'no'} | {r.steps} | {r.retries} | {r.duration_s} | {failure} |")
     md.write_text("\n".join(lines) + "\n", encoding="utf-8")
     chart = out / "task_results.png"
     try:

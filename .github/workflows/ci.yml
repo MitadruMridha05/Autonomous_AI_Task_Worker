@@ -12,6 +12,8 @@ jobs:
           python-version: "3.12"
       - name: Install dependencies
         run: python -m pip install -r requirements.txt
+      - name: Install Playwright Chromium
+        run: python -m playwright install --with-deps chromium
       - name: Import check
         run: python -c "import app.main, agent.cli, evals.run_evals, evals.report"
       - name: Unit and integration tests
